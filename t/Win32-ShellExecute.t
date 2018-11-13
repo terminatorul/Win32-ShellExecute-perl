@@ -15,7 +15,7 @@ ok($subprocess_id && !$CHILD_ERROR, 'shell execute');
 
 # $Win32::ShellExecute::VERB = 'properties';
 my $shellCommand = Win32::ShellExecute->new($ENV{'COMSPEC'}, qw(/C Exit 8));
-$subprocess_id = $shellCommand->run() // say STDERR "Failed to run shell command: $EXTENDED_OS_ERROR";
+$subprocess_id = $shellCommand->run();
 
 waitpid $subprocess_id, 0 if $subprocess_id;
 

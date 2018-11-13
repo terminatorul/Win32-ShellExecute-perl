@@ -7,8 +7,10 @@ use feature 'say';
 use overload '&{}' => 'code_ref';
 use English;
 use Carp;
+use Scope::Guard;
 use Win32::CmdQuote::Simple;
 use Win32::ShellExecute::Exception;
+use Win32::ShellExecute::SystemError;
 
 use constant { false => !!undef, true => !undef };
 use constant
@@ -387,19 +389,15 @@ sub code_ref
 	{
 	    if ($shellExecInfo->{'fMask'} & SEE_MASK_NOCLOSEPROCESS and $shellExecInfo->{'hProcess'})
 	    {
+		my $guard = Scope::Guard->new(sub { CloseHandle($shellExecInfo->{'hProcess'}) });
 		Win32::SetLastError(0);
 		my $subprocess_id = GetProcessId($shellExecInfo->{'hProcess'});
 		my $last_error = Win32::GetLastError();
-
-		CloseHandle($shellExecInfo->{'hProcess'});
+		
 		$shellExecInfo->{'hProcess'} = 0;
 
-		if ($last_error)
-		{
-		    Win32::SetLastError($last_error);
-		    $EXTENDED_OS_ERROR = $last_error;
-		    return undef
-		}
+		die Win32::ShellExecute::SystemError->new($last_error, $shellExecInfo->{'lpVerb'},
+		    $shellExecInfo->{'lpFile'}, $shellExecInfo->{'lpParameters'}) if $last_error;
 
 		return $subprocess_id
 	    }
@@ -408,8 +406,8 @@ sub code_ref
 	}
 
 	# $shellCommand->check_hinstance();
-	$EXTENDED_OS_ERROR = Win32::GetLastError();
-	return undef
+	die Win32::ShellExecute::SystemError->new(Win32::GetLastError(), $shellExecInfo->{'lpVerb'},
+		    $shellExecInfo->{'lpFile'}, $shellExecInfo->{'lpParameters'});
     }
 }
 

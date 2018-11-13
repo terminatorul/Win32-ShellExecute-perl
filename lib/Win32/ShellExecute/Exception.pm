@@ -42,10 +42,6 @@ sub shellexecute_error_message
     return 'Execute shell command failed';
 }
 
-sub get_last_error_message
-{
-}
-
 sub new
 {
     my($package, $code) = (shift, shift);
