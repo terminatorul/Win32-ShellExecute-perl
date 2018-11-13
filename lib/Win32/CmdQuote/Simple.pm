@@ -5,7 +5,7 @@ use strict;
 use warnings;
 use parent 'Exporter';
 use English;
-use Carp;
+use Win32::CmdQuote::Simple::UnsafeArgument;
 
 BEGIN
 {
@@ -23,7 +23,7 @@ sub quote_args
     {
 	for (@ARG)
 	{
-	    Carp::croak "Failed to quote unsafe command argument: $ARG" if $ARG =~ m/"/
+	    die Win32::CmdQuote::Simple::UnsafeArgument->new($ARG, '"') if $ARG =~ m/"/
 	}
 
 	return map { if ($ARG =~ m/[\Q${\CMD_METACHARACTERS}\E]/) { '"' . ($ARG =~ s/(\\*)$/"$1/r) } else { $ARG } } @ARG

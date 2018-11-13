@@ -21,7 +21,8 @@ eval
     Win32::CmdQuote::Simple::quote_args 'name: "string value"'
 };
 
-ok($EVAL_ERROR =~ m/unsafe command argument/, 'die on unsafe command argument');
+ok($EVAL_ERROR =~ m/unsafe characters/ && $EVAL_ERROR->argument eq 'name: "string value"' && $EVAL_ERROR->compound eq '"',
+    'die on unsafe command argument');
 
 $Win32::CmdQuote::Simple::QUOTE_ARGS = false;
 

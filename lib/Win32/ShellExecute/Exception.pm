@@ -3,7 +3,7 @@ package Win32::ShellExecute::Exception;
 use warnings;
 use strict;
 use parent 'Exporter';
-use overload '""' => 'error_message';
+use overload '""' => 'message';
 use English;
 
 use constant
@@ -42,6 +42,10 @@ sub shellexecute_error_message
     return 'Execute shell command failed';
 }
 
+sub get_last_error_message
+{
+}
+
 sub new
 {
     my($package, $code) = (shift, shift);
@@ -59,11 +63,6 @@ sub code
 sub message
 {
     return (shift)->{'message'}
-}
-
-sub error_message
-{
-    goto &message
 }
 
 return !undef

@@ -105,9 +105,9 @@ Win32::API::More->Import('Kernel32', 'BOOL    CloseHandle(HANDLE hObject)');
 Win32::API::More->Import('Kernel32', 'DWORD   GetProcessId(HANDLE hProcess)');
 Win32::API::More->Import('User32',   'HWND    FindWindowExA(HWND hWndParent, HWND hWndChildAfter, LPCSTR lpszClass, LPCSTR lpszWindow)');
 Win32::API::More->Import('User32',   'DWORD   GetWindowThreadProcessId(HWND hWnd, LPDWORD lpdwProcessId)');
-Win32::API::More->Import('Shell32',  'BOOL    ShellExecuteExA(SHELLEXECUTEINFOA *pExecInfo)');
 Win32::API::More->Import('Ole32',    'LRESULT CoInitializeEx(LPVOID pvReserverd, DWORD dwCoInit)');
 Win32::API::More->Import('Ole32',    'void    CoUninitialize()');
+Win32::API::More->Import('Shell32',  'BOOL    ShellExecuteExA(SHELLEXECUTEINFOA *pExecInfo)');
 
 sub co_initialize
 {
