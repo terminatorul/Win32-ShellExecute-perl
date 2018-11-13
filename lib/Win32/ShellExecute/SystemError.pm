@@ -22,7 +22,7 @@ sub parameters
 sub command
 {
     my $err = shift;
-    my($file, $params) = ($err->file, $err->params);
+    my($file, $params) = ($err->file, $err->parameters);
     return join ' ', $file, $params
 }
 

@@ -14,7 +14,7 @@ BEGIN
 }
 
 use constant { false => !!undef, true => !undef };
-use constant CMD_METACHARACTERS => ' ]& |<>[)({}^=;\'+,`~';	# Output from `cmd /?`
+use constant CMD_METACHARACTERS => ' ]& |<>[)({}^=;\'+,`~' . "\e\t\x0B\f\r\n\0";	# Output from `cmd /?`
 our $QUOTE_ARGS = true;
 
 sub quote_args
@@ -23,7 +23,12 @@ sub quote_args
     {
 	for (@ARG)
 	{
-	    die Win32::CmdQuote::Simple::UnsafeArgument->new($ARG, '"') if $ARG =~ m/"/
+	    my $compound = '';
+
+	    $compound .= '"' if $ARG =~ m/"/;
+	    $compound .= '%' if $ARG =~ m/%/;
+
+	    die Win32::CmdQuote::Simple::UnsafeArgument->new($ARG, $compound) if $compound
 	}
 
 	return map { if ($ARG =~ m/[\Q${\CMD_METACHARACTERS}\E]/) { '"' . ($ARG =~ s/(\\*)$/"$1/r) } else { $ARG } } @ARG

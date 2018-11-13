@@ -1,5 +1,6 @@
 use warnings;
 use strict;
+use feature 'say';
 use English;
 use Test::More tests => 2;
 use FindBin;
@@ -22,4 +23,4 @@ waitpid $subprocess_id, 0 if $subprocess_id;
 ok(defined($subprocess_id) && (!$subprocess_id || $CHILD_ERROR == 8 << 8), 'shell execute');
 
 my $wnd = Win32::ShellExecute->find_process_window(undef);
-say STDERR "Found window $wnd, console window ", Win32::ShellExecute::GetConsoleWindow()
+say "Found window $wnd, console window ", Win32::ShellExecute::GetConsoleWindow()

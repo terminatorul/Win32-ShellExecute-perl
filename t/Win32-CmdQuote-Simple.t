@@ -1,7 +1,7 @@
 use warnings;
 use strict;
 use English;
-use Test::More tests => 10;
+use Test::More tests => 11;
 use FindBin;
 use File::Spec::Unix;
 use lib File::Spec::Unix->catdir($FindBin::Bin, File::Spec::Unix->updir(), 'lib');
@@ -23,6 +23,13 @@ eval
 
 ok($EVAL_ERROR =~ m/unsafe characters/ && $EVAL_ERROR->argument eq 'name: "string value"' && $EVAL_ERROR->compound eq '"',
     'die on unsafe command argument');
+
+eval
+{
+    Win32::CmdQuote::Simple::quote_args "System PATH: %PATH%"
+};
+ok($EVAL_ERROR =~ m/unsafe characters/ && $EVAL_ERROR->argument eq 'System PATH: %PATH%' && $EVAL_ERROR->compound eq '%',
+    'die on environment variable expansions');
 
 $Win32::CmdQuote::Simple::QUOTE_ARGS = false;
 
