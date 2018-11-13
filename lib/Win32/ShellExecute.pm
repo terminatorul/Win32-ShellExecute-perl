@@ -4,7 +4,7 @@ package Win32::ShellExecute;
 use strict;
 use warnings;
 use feature 'say';
-use overload '&{}' => 'execute';
+use overload '&{}' => 'code_ref';
 use English;
 use Carp;
 use Win32::CmdQuote::Simple;
@@ -17,7 +17,7 @@ use constant
     SEE_MASK_INVOKEIDLIST => 0x0000000C, SEE_MASK_ICON => 0x00000010, SEE_MASK_HOTKEY => 0x00000020, SEE_MASK_NOCLOSEPROCESS => 0x00000040,
     SEE_MASK_CONNECTNETDRV => 0x00000080, SEE_MASK_NOASYNC => 0x00000100, SEE_MASK_FLAG_DDEWAIT => 0x00000100,
     SEE_MASK_FLAG_DOENVSUBST => 0x00000200, SEE_MASK_FLAG_NO_UI => 0x00000400, SEE_MASK_UNICODE => 0x00004000,
-    SEE_MASK_NO_CONSOLE => 0x00008000, SEE_MASK_ASYNCOK => 0x00100000, SEE_MASK_NOQUERYCLASSSTORE => 0x01000000, 
+    SEE_MASK_NO_CONSOLE => 0x00008000, SEE_MASK_ASYNCOK => 0x00100000, SEE_MASK_NOQUERYCLASSSTORE => 0x01000000,
     SEE_MASK_HMONITOR => 0x00200000, SEE_MASK_NO_ZONECHECKS => 0x00800000, SEE_MASK_WAITFORINPUTIDLE => 0x02000000,
     SEE_MASK_FLAG_LOG_USAGE => 0x04000000, SEE_MASK_FLAG_HINST_IS_SITE => 0x08000000
 };
@@ -30,7 +30,7 @@ use constant
 
 use constant
 {
-    COINIT_APARTMENTTHREADED => 0x02, COINIT_MULTITHREADED => 0x00, COINIT_DISABLE_OLE1DDE => 0x04, COINIT_SPPED_OVER_MEMORY => 0x08 
+    COINIT_APARTMENTTHREADED => 0x02, COINIT_MULTITHREADED => 0x00, COINIT_DISABLE_OLE1DDE => 0x04, COINIT_SPPED_OVER_MEMORY => 0x08
 };
 
 use constant { S_OK => 0, S_FALSE => 1 };
@@ -38,11 +38,11 @@ use constant { S_OK => 0, S_FALSE => 1 };
 use parent 'Exporter';
 
 BEGIN
-{ 
+{
     our @VERSION = '1.0';
     our @EXPORT_OK =
     (
-	'shell_execute' 
+	'shell_execute'
     );
     our @EXPORT_TAGS =
     (
@@ -63,15 +63,16 @@ use Win32::API ();
 
 sub default_flags;
 
-our $QUOTE_ARGS = true;
+our $QUOTE_ARGS = undef;
 our $ProcessID;
-our $APARTMENT = COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE;
-our $FLAGS = &default_flags();
+our $APARTMENT = COINIT_MULTITHREADED | COINIT_DISABLE_OLE1DDE;
+our $FLAGS = default_flags;
 our $HWND = undef;
 our $SHOW = SW_SHOWNORMAL;
 our $DIRECTORY = undef;
 our $VERB = undef;
-our $CLASS = undef;
+our $CLASS_NAME = undef;
+our $CLASS_KEY = 0;
 our $HOTKEY = 0;
 
 Win32::API::Struct->typedef
@@ -96,24 +97,24 @@ Win32::API::Struct->typedef
 	    }
     );
 
-Win32::API::More->Import('Kernel32', 'DWORD GetLastError()');
-Win32::API::More->Import('Kernel32', 'void SetLastError()');
-Win32::API::More->Import('Kernel32', 'HWND GetConsoleWindow()');
-Win32::API::More->Import('Kernel32', 'DWORD GetCurrentProcessId()');
-Win32::API::More->Import('Kernel32', 'BOOL CloseHandle(HANDLE hObject)');
-Win32::API::More->Import('Kernel32', 'DWORD GetProcessId(HANDLE hProcess)');
-Win32::API::More->Import('User32',   'HWND FindWindowExA(HWND hWndParent, HWND hWndChildAfter, LPCSTR lpszClass, LPCSTR lpszWindow)');
-Win32::API::More->Import('User32',   'DWORD GetWindowThreadProcessId(HWND hWnd, LPDWORD lpdwProcessId)');
-Win32::API::More->Import('Shell32',  'BOOL ShellExecuteExA(SHELLEXECUTEINFOA *pExecInfo)');
-Win32::API::More->Import('Ole32',    'LRESULT CoInitialize(LPVOID pvReserverd, DWORD dwCoInit)');
-Win32::API::More->Import('Ole32',    'void CoUninitialize()');
+Win32::API::More->Import('Kernel32', 'DWORD   GetLastError()');
+Win32::API::More->Import('Kernel32', 'void    SetLastError()');
+Win32::API::More->Import('Kernel32', 'HWND    GetConsoleWindow()');
+Win32::API::More->Import('Kernel32', 'DWORD   GetCurrentProcessId()');
+Win32::API::More->Import('Kernel32', 'BOOL    CloseHandle(HANDLE hObject)');
+Win32::API::More->Import('Kernel32', 'DWORD   GetProcessId(HANDLE hProcess)');
+Win32::API::More->Import('User32',   'HWND    FindWindowExA(HWND hWndParent, HWND hWndChildAfter, LPCSTR lpszClass, LPCSTR lpszWindow)');
+Win32::API::More->Import('User32',   'DWORD   GetWindowThreadProcessId(HWND hWnd, LPDWORD lpdwProcessId)');
+Win32::API::More->Import('Shell32',  'BOOL    ShellExecuteExA(SHELLEXECUTEINFOA *pExecInfo)');
+Win32::API::More->Import('Ole32',    'LRESULT CoInitializeEx(LPVOID pvReserverd, DWORD dwCoInit)');
+Win32::API::More->Import('Ole32',    'void    CoUninitialize()');
 
 sub co_initialize
 {
     if (defined $APARTMENT && !ref $APARTMENT)
     {
 	my $hResult = CoInitializeEx(0, $APARTMENT);
-	
+
 	if ($hResult == S_OK || $hResult == S_FALSE)
 	{
 	    $APARTMENT = [ ]
@@ -140,6 +141,8 @@ sub new
     my $package = shift;
     my $shellExecuteInfo = Win32::API::Struct->new('SHELLEXECUTEINFOA');
 
+    $shellExecuteInfo->align('auto');
+
     $shellExecuteInfo->{cbSize} = $shellExecuteInfo->sizeof;
     $shellExecuteInfo->{fMask} = $FLAGS;
 
@@ -153,23 +156,23 @@ sub new
 	$shellExecuteInfo->{hWnd} = $package->find_process_window unless $shellExecuteInfo->{hWnd}
     }
 
-    $shellExecuteInfo->{lpVerb} = $VERB;
+    $shellExecuteInfo->{lpVerb} = $VERB if defined $VERB;
     $shellExecuteInfo->{lpFile} = shift;
-    Carp::croak 'Command or document name expected for call ShellExecute->command()' unless $shellExecuteInfo->{lpFile};
+    Carp::croak 'Command or document name expected for call ShellExecute->new()' unless $shellExecuteInfo->{lpFile};
 
     {
-	local $Win32::CmdQuote::Simple::QUOTE_ARGS = $QUOTE_ARGS;
+	local $Win32::CmdQuote::Simple::QUOTE_ARGS = $QUOTE_ARGS if defined $QUOTE_ARGS;
 
-	$shellExecuteInfo->{lpParameters} = ((join ' ', Win32::CmdQuote::Simple::quote_args @ARG) =~ s/"/"/gr);
+	$shellExecuteInfo->{lpParameters} = join ' ', Win32::CmdQuote::Simple::quote_args @ARG;
     }
 
-    $shellExecuteInfo->{lpDirectory} = $DIRECTORY; 
+    $shellExecuteInfo->{lpDirectory} = $DIRECTORY if defined $DIRECTORY;
     $shellExecuteInfo->{nShow} = $SHOW;
     $shellExecuteInfo->{hInstApp} = 0;
     $shellExecuteInfo->{lpIDList} = 0;
-    $shellExecuteInfo->{lpClass} = $CLASS;
+    $shellExecuteInfo->{lpClass} = $CLASS_NAME if defined $CLASS_NAME;
+    $shellExecuteInfo->{hKeyClass} = $CLASS_KEY;
     $shellExecuteInfo->{dwHotKey} = $HOTKEY;
-    $shellExecuteInfo->{hKeyClass} = 0;
     $shellExecuteInfo->{hMonitorOrIcon} = 0;
     $shellExecuteInfo->{hProcess} = 0;
 
@@ -228,7 +231,7 @@ sub file($)
 sub parameters
 {
     my $shellCommand = shift;
-    local $Win32::CmdQuote::Simple::QUOTE_ARGS = $QUOTE_ARGS;
+    local $Win32::CmdQuote::Simple::QUOTE_ARGS = $QUOTE_ARGS if defined $QUOTE_ARGS;
 
     $shellCommand->{'shell_execute_info'}->{lpParameters} = join ' ', Win32::CmdQuote::Simple::quote_args @ARG
 }
@@ -334,7 +337,7 @@ sub find_process_window
 
     unless ($pid)
     {
-	$ProcessID = GetCurrentProcessId() unless $ProcessID;   
+	$ProcessID = GetCurrentProcessId() unless $ProcessID;
 	$pid = $ProcessID
     }
 
@@ -361,7 +364,7 @@ sub check_hinstance
     }
 }
 
-sub execute
+sub code_ref
 {
     my $shellCommand = shift;
     my $shellExecInfo = $shellCommand->{'shell_execute_info'};
@@ -373,7 +376,14 @@ sub execute
 	$shellExecInfo->{'hInstApp'} = 0 unless $shellExecInfo->{'fMask'} & SEE_MASK_FLAG_HINST_IS_SITE;
 	$shellExecInfo->{'hProcess'} = 0;
 
-	if (ShellExecuteExA($shellExecInfo))
+	my $completed;
+
+	{
+	    local $SIG{'__WARN__'} = sub { };
+	    $completed = ShellExecuteExA($shellExecInfo)
+	}
+
+	if ($completed)
 	{
 	    if ($shellExecInfo->{'fMask'} & SEE_MASK_NOCLOSEPROCESS and $shellExecInfo->{'hProcess'})
 	    {
@@ -394,13 +404,19 @@ sub execute
 		return $subprocess_id
 	    }
 
-	    return true;
+	    return false;
 	}
 
 	# $shellCommand->check_hinstance();
 	$EXTENDED_OS_ERROR = Win32::GetLastError();
 	return undef
     }
+}
+
+sub run()
+{
+    my $shellCommand = shift;
+    return $shellCommand->code_ref()->();
 }
 
 sub shell_execute
